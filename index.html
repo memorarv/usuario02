@@ -469,8 +469,15 @@ async function loadMapping() {
     // usuario.txt debe estar en la misma carpeta que esta página.
     const userResponse = await fetch('./usuario.txt', { cache: 'no-store' });
     if (!userResponse.ok) throw new Error(`No se pudo leer usuario.txt (HTTP ${userResponse.status}).`);
-    usuario = (await userResponse.text()).trim().split(/\s+/)[0] || '';
+    const userConfig = (await userResponse.text()).trim().split(/\s+/);
+    usuario = userConfig[0] || '';
+    const modoConfiguracion = userConfig[1] || '';
     if (!usuario) throw new Error('El archivo usuario.txt está vacío.');
+    if (modoConfiguracion !== 'config0' && modoConfiguracion !== 'config1') {
+      throw new Error('El segundo campo de usuario.txt debe ser config0 o config1.');
+    }
+    // config0 oculta el acceso; config1 permite mostrarlo.
+    settingsButton.style.display = modoConfiguracion === 'config1' ? '' : 'none';
     usuarioLabel.textContent = usuario;
 
     const dataResponse = await fetch(DATA_URL, { cache: 'no-store' });
