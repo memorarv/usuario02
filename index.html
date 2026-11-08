@@ -11,6 +11,7 @@
 :root {
   --panel: rgba(48, 42, 54, 0.68);
   --border: rgba(255, 255, 255, 0.8);
+  --scan-button-diameter: 88px;
 }
 
 * {
@@ -78,6 +79,17 @@ body::before {
   border-radius: 50%;
   background: #DADADA;
   flex-shrink: 0;
+}
+
+
+/* Parpadeo rojo y blanco mientras la cámara está activa */
+.status-dot.camera-active {
+  animation: camera-indicator-blink 0.8s steps(1, end) infinite;
+}
+
+@keyframes camera-indicator-blink {
+  0%, 49.99% { background-color: #FF2525; }
+  50%, 100% { background-color: #FFFFFF; }
 }
 
 .icon-button {
@@ -155,6 +167,31 @@ main {
   font-size: 16px;
 }
 
+/* Ícono y título centrados horizontalmente en el área de la cámara. */
+.camera-placeholder-main {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+/* Texto debajo de las esquinas inferiores del marco de enfoque.
+   El marco termina al 81% de la altura; centramos el texto en el 90,5%. */
+.camera-placeholder .camera-instruction {
+  position: absolute;
+  top: 90.5%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 20px);
+  margin: 0;
+  font-size: clamp(11px, 3vw, 13px);
+  line-height: 1.2;
+  text-align: center;
+}
+
 /* MARCO DE ENFOQUE SOBRE LA CÁMARA */
 .focus-frame {
   position: absolute;
@@ -204,26 +241,6 @@ main {
   border-radius: 0 0 10px;
 }
 
-.helper {
-  margin: 22px 20px 0;
-  padding: 14px 16px;
-  text-align: center;
-  font-size: 15px;
-  line-height: 1.6;
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 16px;
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-}
-
-.helper p {
-  margin: 0 0 7px;
-}
-
-.helper p:last-child {
-  margin-bottom: 0;
-}
 
 .settings-note {
   display: none;
@@ -241,17 +258,23 @@ main {
 }
 
 .bottom-area {
-  margin-top: auto;
-  padding: 28px 24px 0;
+  /* Centro del botón = 1 diámetro desde la parte inferior de la ventana.
+     Distancia desde el borde inferior al botón = 0,5 diámetros. */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--scan-button-diameter) * 0.5);
+  margin: 0;
+  padding: 0;
   display: flex;
-  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 14px;
+  z-index: 5;
 }
 
 .scan-button {
-  width: 88px;
-  height: 88px;
+  width: var(--scan-button-diameter);
+  height: var(--scan-button-diameter);
   border-radius: 50%;
   border: 2px solid white;
   background: rgba(55, 49, 60, 0.78);
@@ -279,32 +302,14 @@ main {
   height: 38px;
 }
 
-.bottom-status {
-  min-height: 20px;
-  padding: 6px 12px;
-  text-align: center;
-  font-size: 13px;
-  background: var(--panel);
-  border-radius: 20px;
-}
 
 @media (max-height: 650px) {
+  :root { --scan-button-diameter: 72px; }
   .camera-frame {
     margin-top: 24px;
   }
 
-  .helper {
-    margin-top: 14px;
-  }
 
-  .bottom-area {
-    padding-top: 14px;
-  }
-
-  .scan-button {
-    width: 72px;
-    height: 72px;
-  }
 }
 
 @media (min-width: 700px) {
@@ -361,6 +366,68 @@ main {
   .no-detection-actions { flex-direction: column; }
 }
 
+#noDetectionMessage strong {
+  font-weight: 900;
+}
+
+/* Aviso de cuenta inactiva. No hay reconocimiento ni acceso a la cámara. */
+.account-inactive-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 12, 20, 0.32);
+  backdrop-filter: blur(5px);
+}
+.account-inactive-overlay[hidden] { display: none !important; }
+.account-inactive-dialog {
+  width: min(100%, 420px);
+  padding: 28px 22px;
+  border-radius: 20px;
+  background: #f7f8fb;
+  color: #172033;
+  text-align: center;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+}
+.account-inactive-dialog p {
+  margin: 0 0 22px;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+.account-inactive-dialog button {
+  min-height: 48px;
+  padding: 10px 26px;
+  border: 0;
+  border-radius: 12px;
+  background: #263c5a;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+
+/* Las cuatro esquinas cambian temporalmente a amarillo */
+.focus-frame.coincidencia-amarilla .corner {
+  border-color: #FFD400;
+}
+
+
+/* Estado accesible sin ocupar espacio ni mostrar mensajes debajo del botón */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 </style>
 </head>
 
@@ -388,17 +455,19 @@ main {
     <canvas id="ocrCanvas" hidden></canvas>
 
     <div class="camera-placeholder" id="cameraPlaceholder">
-      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
-        <rect x="5" y="12" width="38" height="27" rx="4"
-          stroke="currentColor" stroke-width="2.5"/>
-        <path d="M15 12l3-5h12l3 5"
-          stroke="currentColor" stroke-width="2.5"
-          stroke-linejoin="round"/>
-        <circle cx="24" cy="25" r="7"
-          stroke="currentColor" stroke-width="2.5"/>
-      </svg>
-      <strong>Vista de la cámara</strong>
-      <span>Presiona el botón inferior para activar la cámara</span>
+      <div class="camera-placeholder-main">
+        <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <rect x="5" y="12" width="38" height="27" rx="4"
+            stroke="currentColor" stroke-width="2.5"/>
+          <path d="M15 12l3-5h12l3 5"
+            stroke="currentColor" stroke-width="2.5"
+            stroke-linejoin="round"/>
+          <circle cx="24" cy="25" r="7"
+            stroke="currentColor" stroke-width="2.5"/>
+        </svg>
+        <strong>Vista de la cámara</strong>
+      </div>
+      <span class="camera-instruction">Presiona el botón inferior para activar la cámara</span>
     </div>
 
     <div class="focus-frame" aria-hidden="true">
@@ -410,10 +479,6 @@ main {
 
   </section>
 
-  <section class="helper">
-    <p><strong>Apunta a una placa con un identificador único.</strong></p>
-    <p>La imagen en vivo aparecerá dentro del recuadro horizontal.</p>
-  </section>
 
   <div class="settings-note" id="settingsNote">
     <strong>Configuración de reconocimiento</strong>
@@ -437,6 +502,7 @@ main {
     type="button"
     aria-label="Activar cámara"
     title="Activar cámara"
+    disabled
   >
     <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
       <path d="M6 16v-5a4 4 0 0 1 4-4h5
@@ -454,9 +520,7 @@ main {
     </svg>
   </button>
 
-  <div class="bottom-status" id="bottomStatus" aria-live="polite">
-    Listo para activar la cámara
-  </div>
+  <span class="visually-hidden" id="bottomStatus" aria-live="polite"></span>
 </footer>
 
 
@@ -468,6 +532,14 @@ main {
       <button type="button" id="acceptVideoButton">ACEPTAR</button>
       <button type="button" id="continueScanButton">SEGUIR SCANEO</button>
     </div>
+  </div>
+</div>
+
+<div class="account-inactive-overlay" id="accountInactiveOverlay" role="alertdialog"
+     aria-modal="true" aria-labelledby="accountInactiveMessage" hidden>
+  <div class="account-inactive-dialog">
+    <p id="accountInactiveMessage">Cuenta Inactiva</p>
+    <button type="button" id="closeInactiveButton">CERRAR</button>
   </div>
 </div>
 
@@ -501,11 +573,14 @@ const noDetectionOverlay = document.getElementById('noDetectionOverlay');
 const noDetectionMessage = document.getElementById('noDetectionMessage');
 const acceptVideoButton = document.getElementById('acceptVideoButton');
 const continueScanButton = document.getElementById('continueScanButton');
+const accountInactiveOverlay = document.getElementById('accountInactiveOverlay');
+const closeInactiveButton = document.getElementById('closeInactiveButton');
 const NO_DETECTION_TIMEOUT_MS = 5000;
 let noDetectionTimer = null;
 let destinationUrl = '';
 let titularName = '';
 let usuario = '';
+let accountActive = null; // null: sin verificar; true: activ1; false: activ0
 let records = [];
 const attemptsEl = document.getElementById('ocrAttempts');
 const timeEl = document.getElementById('ocrTime');
@@ -527,41 +602,76 @@ let attempts = 0;
 let ocrStart = 0;
 let scanSessionStart = 0;
 
-function normalize(value) {
-  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
 }
+
+function normalize(value) {
+  // Conservar correctamente las letras de nombres con tildes y ñ.
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+function showInactiveAccount() {
+  scanButton.disabled = true;
+  statusLabel.textContent = 'Cuenta Inactiva';
+  statusDot.classList.remove('camera-active');
+  statusDot.style.background = '#DADADA';
+  bottomStatus.textContent = 'Cuenta Inactiva';
+  accountInactiveOverlay.hidden = false;
+  closeInactiveButton.focus();
+}
+closeInactiveButton.addEventListener('click', () => {
+  accountInactiveOverlay.hidden = true;
+});
+
 async function loadMapping() {
   records = [];
   try {
-    // usuario.txt debe estar en la misma carpeta que esta página.
-    // Formato: usuario / modo / título (reservado) / URL / cuatro palabras.
+    // Formato de usuario.txt: 6 líneas.
+    // 1 usuario; 2 activ1/activ0; 3 config0/config1;
+    // 4 titular; 5 URL HTTPS; 6 cuatro palabras de coincidencia.
     const userResponse = await fetch('./usuario.txt', { cache: 'no-store' });
     if (!userResponse.ok) throw new Error(`No se pudo leer usuario.txt (HTTP ${userResponse.status}).`);
     const lines = (await userResponse.text()).replace(/^\uFEFF/, '').split(/\r?\n/).map(line => line.trim());
-    if (lines.length < 5) throw new Error('usuario.txt debe contener al menos 5 líneas.');
+    if (lines.length < 6) throw new Error('usuario.txt debe contener al menos 6 líneas.');
 
     usuario = lines[0] || '';
-    const modoConfiguracion = lines[1] || '';
-    // La tercera línea (Nombre Titular) queda reservada y no se utiliza por ahora.
-    titularName = lines[2] || '';
-    const urlText = lines[3] || '';
-    const words = (lines[4] || '').split(/\s+/).filter(Boolean);
+    const activacion = lines[1] || '';
+    const modoConfiguracion = lines[2] || '';
+    titularName = lines[3] || '';
+    const urlText = lines[4] || '';
+    const words = (lines[5] || '').split(/\s+/).filter(Boolean);
 
     if (!usuario) throw new Error('La primera línea de usuario.txt está vacía.');
+    if (activacion !== 'activ0' && activacion !== 'activ1') {
+      throw new Error('La segunda línea de usuario.txt debe ser activ0 o activ1.');
+    }
     if (modoConfiguracion !== 'config0' && modoConfiguracion !== 'config1') {
-      throw new Error('La segunda línea de usuario.txt debe ser config0 o config1.');
+      throw new Error('La tercera línea de usuario.txt debe ser config0 o config1.');
     }
     settingsButton.style.display = modoConfiguracion === 'config1' ? '' : 'none';
     usuarioLabel.textContent = usuario;
+    accountActive = activacion === 'activ1';
 
-    if (!urlText) throw new Error('La cuarta línea de usuario.txt debe contener la URL de destino.');
+    // Un usuario activ0 nunca llega a iniciar la cámara ni el worker OCR.
+    if (!accountActive) {
+      mappingStatus.textContent = 'Cuenta Inactiva. Reconocimiento bloqueado.';
+      document.getElementById('mappingDetails').textContent = 'Cuenta inactiva.';
+      showInactiveAccount();
+      return [];
+    }
+
+    accountInactiveOverlay.hidden = true;
+    if (!urlText) throw new Error('La quinta línea de usuario.txt debe contener la URL de destino.');
     let url;
     try { url = new URL(urlText); }
-    catch { throw new Error('La URL de destino de la cuarta línea no es válida.'); }
+    catch { throw new Error('La URL de destino de la quinta línea no es válida.'); }
     if (url.protocol !== 'https:') throw new Error('La URL de destino debe usar HTTPS.');
     destinationUrl = url.href;
-    noDetectionMessage.textContent = `NO SE HA DETECTADO NOMBRE. ¿DESEA VER VIDEO DE ${titularName || 'ESTE TITULAR'}?`;
-    if (words.length !== 4) throw new Error(`La quinta línea debe contener exactamente 4 palabras; se encontraron ${words.length}.`);
+    noDetectionMessage.innerHTML = `NO SE HA DETECTADO NOMBRE. ¿DESEA VER VIDEO DE <strong>${escapeHtml((titularName || 'ESTE TITULAR').toLocaleUpperCase('es-CL'))}</strong>?`;
+    if (words.length !== 4) throw new Error(`La sexta línea debe contener exactamente 4 palabras; se encontraron ${words.length}.`);
 
     records = words.map((word, index) => ({ id: word, url: url.href, index: index + 1 }));
     mappingStatus.textContent = `Configuración cargada: ${records.length} palabras para ${usuario}.`;
@@ -575,7 +685,8 @@ async function loadMapping() {
   }
 }
 function getRecords() {
-  if (!records.length) throw new Error('No hay palabras configuradas. Revisa las cinco líneas de usuario.txt en ⚙.');
+  if (!accountActive) throw new Error('Cuenta Inactiva');
+  if (!records.length) throw new Error('No hay palabras configuradas. Revisa las seis líneas de usuario.txt en ⚙.');
   return records;
 }
 function updateStatus(message, detail = '') {
@@ -622,11 +733,12 @@ async function stopRecognition(updateText = true) {
   video.hidden = true;
   placeholder.hidden = false;
   statusLabel.textContent = 'Cámara desactivada';
+  statusDot.classList.remove('camera-active');
   statusDot.style.background = '#DADADA';
   scanButton.disabled = false;
   scanButton.setAttribute('aria-label', 'Activar cámara');
   scanButton.setAttribute('title', 'Activar cámara');
-  if (updateText) bottomStatus.textContent = 'Cámara detenida';
+  if (updateText) bottomStatus.textContent = 'Activar cámara en botón de mas abajo';
 }
 
 
@@ -692,17 +804,28 @@ async function scanLoop() {
       if (streak >= 2) {
         clearNoDetectionTimer();
         redirected = true;
+        scanning = false;
         saveHistory(match.id);
         statusLabel.textContent = 'Placa identificada';
         bottomStatus.textContent = `Placa ${match.id} identificada. Abriendo enlace…`;
+
+        // Destello amarillo durante 0,1 segundos.
+        const focusFrame = document.querySelector('.focus-frame');
+        if (focusFrame) focusFrame.classList.add('coincidencia-amarilla');
+        await new Promise(resolve => setTimeout(resolve, 100));
+        if (focusFrame) focusFrame.classList.remove('coincidencia-amarilla');
+
+        // Congelar el último fotograma y mostrarlo antes de navegar.
+        if (video.readyState >= 2) video.pause();
         await stopTracksOnly();
+        await new Promise(resolve => setTimeout(resolve, 350));
         window.location.assign(match.url);
         return;
       }
     } else {
       lastCandidate = '';
       streak = 0;
-      bottomStatus.textContent = 'Buscando una placa registrada…';
+      bottomStatus.textContent = 'Scaneando';
     }
   } catch (e) {
     console.error('Error OCR:', e);
@@ -717,6 +840,8 @@ async function stopTracksOnly() {
   scanning = false;
   if (stream) stream.getTracks().forEach(track => track.stop());
   stream = null;
+  statusDot.classList.remove('camera-active');
+  statusDot.style.background = '#DADADA';
 }
 
 async function startRecognition() {
@@ -731,6 +856,7 @@ async function startRecognition() {
   try {
     // Load the user's shared word/URL configuration before activating OCR.
     await loadMapping();
+    if (!accountActive) return; // No se solicita acceso a cámara con activ0.
     getRecords();
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
@@ -741,7 +867,8 @@ async function startRecognition() {
     placeholder.hidden = true;
     await video.play();
     statusLabel.textContent = 'Inicializando reconocimiento';
-    statusDot.style.background = '#FFFFFF';
+    statusDot.style.background = '';
+    statusDot.classList.add('camera-active');
     bottomStatus.textContent = 'Cargando OCR en español…';
     attempts = 0;
     ocrStart = performance.now();
@@ -760,10 +887,11 @@ async function startRecognition() {
     scanning = true;
     startNoDetectionTimer();
     statusLabel.textContent = 'Reconocimiento activo';
-    bottomStatus.textContent = 'Apunta a una placa registrada';
-    scanButton.disabled = false;
-    scanButton.setAttribute('aria-label', 'Detener reconocimiento');
-    scanButton.setAttribute('title', 'Detener reconocimiento');
+    bottomStatus.textContent = 'Apuntar cámara para reconocimento de nombre';
+    // Con la cámara activa, el botón de acceso queda deshabilitado.
+    scanButton.disabled = true;
+    scanButton.setAttribute('aria-label', 'Cámara activada');
+    scanButton.setAttribute('title', 'Cámara activada');
     scanLoop();
   } catch (e) {
     console.error(e);
@@ -774,7 +902,8 @@ async function startRecognition() {
     mappingStatus.textContent = e.message || String(e);
   } finally {
     openingCamera = false;
-    scanButton.disabled = false;
+    // Permitir reintentar solo si la cámara no quedó activa.
+    scanButton.disabled = Boolean(stream) || accountActive === false;
   }
 }
 
@@ -796,21 +925,30 @@ continueScanButton.addEventListener('click', () => {
   }
   scanning = true;
   startNoDetectionTimer();
-  bottomStatus.textContent = 'Continúa apuntando a una placa registrada…';
+  bottomStatus.textContent = 'Apuntar cámara para reconocimento de nombre';
   scanLoop();
 });
 
 scanButton.addEventListener('click', async () => {
-  if (scanning || stream) await stopRecognition();
-  else await startRecognition();
+  // Se permite iniciar una sola vez mientras la cámara permanezca activa.
+  if (openingCamera || scanning || stream) return;
+  await startRecognition();
 });
 window.addEventListener('pagehide', () => {
   clearNoDetectionTimer();
   scanning = false;
+  statusDot.classList.remove('camera-active');
   if (stream) stream.getTracks().forEach(track => track.stop());
   if (worker) worker.terminate().catch(() => {});
 });
-loadMapping().catch(e => console.error('No se pudo cargar la configuración:', e));
+// Comprobar la activación al abrir la página y repetir la verificación al pulsar la cámara.
+loadMapping()
+  .then(() => { if (!openingCamera) scanButton.disabled = accountActive !== true; })
+  .catch(e => {
+    console.error('No se pudo cargar la configuración:', e);
+    statusLabel.textContent = 'Error de configuración';
+    if (!openingCamera) scanButton.disabled = false; // Permitir reintentar la lectura.
+  });
 renderHistory();
 </script>
 
