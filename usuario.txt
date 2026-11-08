@@ -1,1 +1,5 @@
-usuario02 config1
+usuario02
+config0
+Miguel Andrés Fuente-Alba Riquelme
+https://memorarv.github.io/01_Arnold/
+Miguel Andrés Fuente Alba
