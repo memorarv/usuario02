@@ -372,7 +372,7 @@ main {
     <p>La cámara analiza el texto de las placas y abre el enlace asociado cuando detecta una coincidencia estable.</p>
     <p>Usuario: <strong id="usuarioLabel">Cargando usuario…</strong></p>
     <p id="mappingStatus" aria-live="polite">Cargando configuración compartida…</p>
-    <p id="mappingDetails">Las palabras y el enlace se leen desde data.txt.</p>
+    <p id="mappingDetails">Las palabras y el enlace se leen desde usuario.txt.</p>
     <hr style="border-color:rgba(255,255,255,.25);margin:14px 0">
     <strong>Diagnóstico OCR</strong>
     <p>Intentos: <span id="ocrAttempts">0</span> · Último análisis: <span id="ocrTime">—</span> · Tiempo desde activar: <span id="ocrTotal">0 s</span></p>
@@ -437,7 +437,6 @@ const canvas = document.getElementById('ocrCanvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const mappingStatus = document.getElementById('mappingStatus');
 const usuarioLabel = document.getElementById('usuarioLabel');
-const DATA_URL = 'https://memorarv.github.io/00_Main/data.txt';
 let usuario = '';
 let records = [];
 const attemptsEl = document.getElementById('ocrAttempts');
@@ -467,39 +466,35 @@ async function loadMapping() {
   records = [];
   try {
     // usuario.txt debe estar en la misma carpeta que esta página.
+    // Formato: usuario / modo / título (reservado) / URL / cuatro palabras.
     const userResponse = await fetch('./usuario.txt', { cache: 'no-store' });
     if (!userResponse.ok) throw new Error(`No se pudo leer usuario.txt (HTTP ${userResponse.status}).`);
-    const userConfig = (await userResponse.text()).trim().split(/\s+/);
-    usuario = userConfig[0] || '';
-    const modoConfiguracion = userConfig[1] || '';
-    if (!usuario) throw new Error('El archivo usuario.txt está vacío.');
+    const lines = (await userResponse.text()).replace(/^\uFEFF/, '').split(/\r?\n/).map(line => line.trim());
+    if (lines.length < 5) throw new Error('usuario.txt debe contener al menos 5 líneas.');
+
+    usuario = lines[0] || '';
+    const modoConfiguracion = lines[1] || '';
+    // La tercera línea (Nombre Titular) queda reservada y no se utiliza por ahora.
+    const urlText = lines[3] || '';
+    const words = (lines[4] || '').split(/\s+/).filter(Boolean);
+
+    if (!usuario) throw new Error('La primera línea de usuario.txt está vacía.');
     if (modoConfiguracion !== 'config0' && modoConfiguracion !== 'config1') {
-      throw new Error('El segundo campo de usuario.txt debe ser config0 o config1.');
+      throw new Error('La segunda línea de usuario.txt debe ser config0 o config1.');
     }
-    // config0 oculta el acceso; config1 permite mostrarlo.
     settingsButton.style.display = modoConfiguracion === 'config1' ? '' : 'none';
     usuarioLabel.textContent = usuario;
 
-    const dataResponse = await fetch(DATA_URL, { cache: 'no-store' });
-    if (!dataResponse.ok) throw new Error(`No se pudo leer data.txt (HTTP ${dataResponse.status}).`);
-    const dataText = await dataResponse.text();
-    const lines = dataText.split(/\r?\n/);
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line || line.startsWith('#')) continue;
-      const fields = line.split(/\s+/);
-      if (fields.length < 3) continue;
-      const [user, word, urlText] = fields;
-      if (user !== usuario) continue;
-      const url = new URL(urlText);
-      if (url.protocol !== 'https:') throw new Error(`La URL de la palabra "${word}" debe usar HTTPS.`);
-      records.push({ id: word, url: url.href });
-    }
-    if (!records.length) throw new Error(`No hay filas para "${usuario}" en data.txt.`);
-    const uniqueUrls = [...new Set(records.map(record => record.url))];
-    if (uniqueUrls.length > 1) throw new Error(`Las filas de "${usuario}" deben tener la misma URL.`);
-    mappingStatus.textContent = `Configuración cargada: ${records.length} palabra(s) para ${usuario}.`;
-    document.getElementById('mappingDetails').textContent = `Destino configurado: ${uniqueUrls[0]}`;
+    if (!urlText) throw new Error('La cuarta línea de usuario.txt debe contener la URL de destino.');
+    let url;
+    try { url = new URL(urlText); }
+    catch { throw new Error('La URL de destino de la cuarta línea no es válida.'); }
+    if (url.protocol !== 'https:') throw new Error('La URL de destino debe usar HTTPS.');
+    if (words.length !== 4) throw new Error(`La quinta línea debe contener exactamente 4 palabras; se encontraron ${words.length}.`);
+
+    records = words.map((word, index) => ({ id: word, url: url.href, index: index + 1 }));
+    mappingStatus.textContent = `Configuración cargada: ${records.length} palabras para ${usuario}.`;
+    document.getElementById('mappingDetails').textContent = `Destino configurado: ${url.href}`;
     return records;
   } catch (e) {
     records = [];
@@ -509,7 +504,7 @@ async function loadMapping() {
   }
 }
 function getRecords() {
-  if (!records.length) throw new Error('No hay palabras configuradas. Revisa usuario.txt y data.txt en ⚙.');
+  if (!records.length) throw new Error('No hay palabras configuradas. Revisa las cinco líneas de usuario.txt en ⚙.');
   return records;
 }
 function updateStatus(message, detail = '') {
