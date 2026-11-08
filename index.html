@@ -313,6 +313,54 @@ main {
     margin: 0 auto;
   }
 }
+
+/* Aviso cuando no se detecta ningún nombre dentro del tiempo establecido */
+.no-detection-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 12, 20, .32);
+  backdrop-filter: blur(5px);
+}
+.no-detection-overlay.visible { display: flex; }
+.no-detection-dialog {
+  width: min(100%, 420px);
+  padding: 26px 22px;
+  border-radius: 20px;
+  background: #f7f8fb;
+  color: #172033;
+  text-align: center;
+  box-shadow: 0 18px 60px rgba(0,0,0,.35);
+}
+.no-detection-dialog p {
+  margin: 0 0 22px;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  font-weight: 700;
+}
+.no-detection-actions {
+  display: flex;
+  gap: 12px;
+}
+.no-detection-actions button {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+#acceptVideoButton { background: #263c5a; color: white; }
+#continueScanButton { background: #e2e7ef; color: #172033; }
+@media (max-width: 360px) {
+  .no-detection-actions { flex-direction: column; }
+}
+
 </style>
 </head>
 
@@ -411,6 +459,18 @@ main {
   </div>
 </footer>
 
+
+<div class="no-detection-overlay" id="noDetectionOverlay" role="dialog"
+     aria-modal="true" aria-labelledby="noDetectionMessage">
+  <div class="no-detection-dialog">
+    <p id="noDetectionMessage">NO SE HA DETECTADO NOMBRE. ¿DESEA VER VIDEO?</p>
+    <div class="no-detection-actions">
+      <button type="button" id="acceptVideoButton">ACEPTAR</button>
+      <button type="button" id="continueScanButton">SEGUIR SCANEO</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 function ajustarFondo() {
@@ -437,6 +497,14 @@ const canvas = document.getElementById('ocrCanvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const mappingStatus = document.getElementById('mappingStatus');
 const usuarioLabel = document.getElementById('usuarioLabel');
+const noDetectionOverlay = document.getElementById('noDetectionOverlay');
+const noDetectionMessage = document.getElementById('noDetectionMessage');
+const acceptVideoButton = document.getElementById('acceptVideoButton');
+const continueScanButton = document.getElementById('continueScanButton');
+const NO_DETECTION_TIMEOUT_MS = 5000;
+let noDetectionTimer = null;
+let destinationUrl = '';
+let titularName = '';
 let usuario = '';
 let records = [];
 const attemptsEl = document.getElementById('ocrAttempts');
@@ -475,6 +543,7 @@ async function loadMapping() {
     usuario = lines[0] || '';
     const modoConfiguracion = lines[1] || '';
     // La tercera línea (Nombre Titular) queda reservada y no se utiliza por ahora.
+    titularName = lines[2] || '';
     const urlText = lines[3] || '';
     const words = (lines[4] || '').split(/\s+/).filter(Boolean);
 
@@ -490,6 +559,8 @@ async function loadMapping() {
     try { url = new URL(urlText); }
     catch { throw new Error('La URL de destino de la cuarta línea no es válida.'); }
     if (url.protocol !== 'https:') throw new Error('La URL de destino debe usar HTTPS.');
+    destinationUrl = url.href;
+    noDetectionMessage.textContent = `NO SE HA DETECTADO NOMBRE. ¿DESEA VER VIDEO DE ${titularName || 'ESTE TITULAR'}?`;
     if (words.length !== 4) throw new Error(`La quinta línea debe contener exactamente 4 palabras; se encontraron ${words.length}.`);
 
     records = words.map((word, index) => ({ id: word, url: url.href, index: index + 1 }));
@@ -536,6 +607,8 @@ settingsButton.addEventListener('click', () => {
 });
 
 async function stopRecognition(updateText = true) {
+  clearNoDetectionTimer();
+  closeNoDetectionPrompt();
   scanning = false;
   redirected = false;
   if (stream) stream.getTracks().forEach(track => track.stop());
@@ -554,6 +627,33 @@ async function stopRecognition(updateText = true) {
   scanButton.setAttribute('aria-label', 'Activar cámara');
   scanButton.setAttribute('title', 'Activar cámara');
   if (updateText) bottomStatus.textContent = 'Cámara detenida';
+}
+
+
+function clearNoDetectionTimer() {
+  if (noDetectionTimer !== null) {
+    clearTimeout(noDetectionTimer);
+    noDetectionTimer = null;
+  }
+}
+function startNoDetectionTimer() {
+  clearNoDetectionTimer();
+  noDetectionTimer = setTimeout(() => {
+    if (!scanning || redirected) return;
+    // Detiene el ciclo OCR, pero mantiene cámara y worker listos para reanudar.
+    scanning = false;
+    noDetectionTimer = null;
+    // Congela la imagen visible sin apagar la cámara ni detener sus pistas.
+    if (video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      video.pause();
+    }
+    bottomStatus.textContent = 'No se detectó ningún nombre.';
+    noDetectionOverlay.classList.add('visible');
+    acceptVideoButton.focus();
+  }, NO_DETECTION_TIMEOUT_MS);
+}
+function closeNoDetectionPrompt() {
+  noDetectionOverlay.classList.remove('visible');
 }
 
 async function scanLoop() {
@@ -590,6 +690,7 @@ async function scanLoop() {
       else { lastCandidate = match.id; streak = 1; }
       bottomStatus.textContent = `Coincidencia ${match.id}: confirmando ${streak}/2…`;
       if (streak >= 2) {
+        clearNoDetectionTimer();
         redirected = true;
         saveHistory(match.id);
         statusLabel.textContent = 'Placa identificada';
@@ -657,6 +758,7 @@ async function startRecognition() {
     });
     await worker.setParameters({ tessedit_pageseg_mode: '6' });
     scanning = true;
+    startNoDetectionTimer();
     statusLabel.textContent = 'Reconocimiento activo';
     bottomStatus.textContent = 'Apunta a una placa registrada';
     scanButton.disabled = false;
@@ -675,11 +777,35 @@ async function startRecognition() {
     scanButton.disabled = false;
   }
 }
+
+acceptVideoButton.addEventListener('click', async () => {
+  closeNoDetectionPrompt();
+  clearNoDetectionTimer();
+  redirected = true;
+  await stopTracksOnly();
+  if (destinationUrl) window.location.assign(destinationUrl);
+});
+continueScanButton.addEventListener('click', () => {
+  closeNoDetectionPrompt();
+  lastCandidate = '';
+  streak = 0;
+  ocrStart = performance.now();
+  totalEl.textContent = '0 s';
+  if (video && video.srcObject && video.paused) {
+    video.play().catch(err => console.warn('No se pudo reanudar el video:', err));
+  }
+  scanning = true;
+  startNoDetectionTimer();
+  bottomStatus.textContent = 'Continúa apuntando a una placa registrada…';
+  scanLoop();
+});
+
 scanButton.addEventListener('click', async () => {
   if (scanning || stream) await stopRecognition();
   else await startRecognition();
 });
 window.addEventListener('pagehide', () => {
+  clearNoDetectionTimer();
   scanning = false;
   if (stream) stream.getTracks().forEach(track => track.stop());
   if (worker) worker.terminate().catch(() => {});
